@@ -22,7 +22,8 @@ func performRequest(request string) (*http.Request, error) {
 	done := make(chan bool, 1)
 	handler := &ToyHandler{
 		Req:  nil,
-		Done: done}
+		Done: done,
+	}
 
 	srv := http.Server{Handler: handler}
 	listener := NewToyListener(request)

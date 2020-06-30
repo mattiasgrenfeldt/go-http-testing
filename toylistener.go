@@ -26,7 +26,8 @@ func NewToyListener(request string) ToyListener {
 		c2s:          c2s,
 		wg:           wg,
 		acceptedOnce: false,
-		request:      request}
+		request:      request,
+	}
 }
 
 // Accept waits for and returns the next connection to the listener.
