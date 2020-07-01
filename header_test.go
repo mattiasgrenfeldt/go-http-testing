@@ -1,26 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"./requesttesting"
 )
 
 const (
-	statusOK = "HTTP/1.1 200 OK"
+	statusOK = "HTTP/1.1 200 OK\r\n"
 )
-
-// hasPrefix checks whether 'bytes' has the prefix 'prefix'.
-func hasPrefix(bytes []byte, prefix string) bool {
-	prefixSlice := []byte(prefix)
-	for i := range prefixSlice {
-		if bytes[i] != prefixSlice[i] {
-			return false
-		}
-	}
-	return true
-}
 
 func TestBasic(t *testing.T) {
 	// All tests use verbatim newline characters instead of using multiline strings to ensure that \r and \n end up in exactly the right places.
@@ -31,16 +23,18 @@ func TestBasic(t *testing.T) {
 
 	req, resp, err := requesttesting.PerformRequest(context.Background(), request)
 	if err != nil {
-		t.Errorf("err, got: %v, wanted: nil", err)
+		t.Errorf("PerformRequest() got: %v want: nil", err)
 	}
 
-	if !hasPrefix(resp, statusOK) {
-		t.Errorf("Status code, got: %v, wanted: %v", resp[:len(statusOK)], statusOK)
+	if !bytes.HasPrefix(resp, []byte(statusOK)) {
+		got := string(resp[:bytes.IndexByte(resp, '\n')+1])
+		t.Errorf("status code got: %q want: %q", got, statusOK)
 	}
 
 	headers := req.Header
-	if len(headers["A"]) != 1 || headers["A"][0] != "B" {
-		t.Errorf("req.Header, got:, %v, wanted: map[A:[B]]", headers)
+	want := []string{"B"}
+	if diff := cmp.Diff(headers["A"], want); diff != "" {
+		t.Errorf("req.Header[\"A\"] got: %v want: %v\ndiff: %v", headers["A"], want, diff)
 	}
 }
 
@@ -53,15 +47,17 @@ func TestOrdering(t *testing.T) {
 
 	req, resp, err := requesttesting.PerformRequest(context.Background(), request)
 	if err != nil {
-		t.Errorf("err, got: %v, wanted: nil", err)
+		t.Errorf("PerformRequest() got: %v want: nil", err)
 	}
 
-	if !hasPrefix(resp, statusOK) {
-		t.Errorf("Status code, got: %v, wanted: %v", resp[:len(statusOK)], statusOK)
+	if !bytes.HasPrefix(resp, []byte(statusOK)) {
+		got := string(resp[:bytes.IndexByte(resp, '\n')+1])
+		t.Errorf("status code got: %q want: %q", got, statusOK)
 	}
 
 	headers := req.Header
-	if len(headers["A"]) != 2 || headers["A"][0] != "X" || headers["A"][1] != "Y" {
-		t.Errorf("req.Header, got: %v, wanted: map[A:[X Y]]", headers)
+	want := []string{"X", "Y"}
+	if diff := cmp.Diff(headers["A"], want); diff != "" {
+		t.Errorf("req.Header[\"A\"] got: %v want: %v\ndiff: %v", headers["A"], want, diff)
 	}
 }
