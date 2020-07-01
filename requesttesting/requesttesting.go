@@ -44,7 +44,7 @@ func (h *saveRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type inMemoryListener struct {
 	s2c         io.Closer
-	c2s         io.ReadWriteCloser
+	c2s         net.Conn
 	connChannel chan net.Conn
 	closeOnce   sync.Once
 }
@@ -100,16 +100,6 @@ func (l *inMemoryListener) Close() error {
 }
 
 // Addr returns the listener's network address.
-func (inMemoryListener) Addr() net.Addr {
-	return dummyAddr{}
-}
-
-type dummyAddr struct{}
-
-func (dummyAddr) Network() string {
-	return "inmemory"
-}
-
-func (dummyAddr) String() string {
-	return "localhost"
+func (l *inMemoryListener) Addr() net.Addr {
+	return l.c2s.LocalAddr()
 }
