@@ -18,14 +18,19 @@ func PerformRequest(ctx context.Context, request []byte) (*http.Request, []byte,
 	go func() {
 		srv.Serve(&listener)
 	}()
-	listener.SendRequest(request)
-	response, err := listener.ReadResponse()
-	err2 := srv.Shutdown(ctx)
-	if err == nil {
-		err = err2
+	defer srv.Close()
+
+	err := listener.SendRequest(request)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return handler.LastRequest, response, err
+	response, err := listener.ReadResponse()
+	if err != nil {
+		return handler.LastRequest, nil, err
+	}
+
+	return handler.LastRequest, response, srv.Shutdown(ctx)
 }
 
 // saveRequestHandler puts the most recent request it has received in LastRequest
@@ -58,8 +63,9 @@ func newInMemoryListener() inMemoryListener {
 
 // SendRequest writes 'request' to the c2s connection which will send the request to the server listening on this listener.
 // Blocks until the server has read the message.
-func (l *inMemoryListener) SendRequest(request []byte) {
-	l.c2s.Write(request)
+func (l *inMemoryListener) SendRequest(request []byte) error {
+	_, err := l.c2s.Write(request)
+	return err
 }
 
 // ReadResponse reads the response from the c2s connection which is sent by the listening server.
@@ -67,6 +73,9 @@ func (l *inMemoryListener) SendRequest(request []byte) {
 func (l *inMemoryListener) ReadResponse() ([]byte, error) {
 	bytes := make([]byte, 4096)
 	n, err := l.c2s.Read(bytes)
+	if n == 4096 {
+		return nil, errors.New("response larger than 4096 bytes")
+	}
 	return bytes[:n], err
 }
 
