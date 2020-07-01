@@ -6,22 +6,21 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 )
 
 // PerformRequest performs the HTTP request in 'request' against a http.Server and returns the http.Request that is seen by a http.Handler and the response that the server generates as a []byte.
 func PerformRequest(ctx context.Context, request []byte) (*http.Request, []byte, error) {
-	handler := &saveRequestHandler{LastRequest: nil}
+	handler := &saveRequestHandler{}
 
 	srv := http.Server{Handler: handler}
 	listener := newInMemoryListener()
+	defer listener.Close()
 
-	go func() {
-		srv.Serve(&listener)
-	}()
+	go srv.Serve(&listener)
 	defer srv.Close()
 
-	err := listener.SendRequest(request)
-	if err != nil {
+	if err := listener.SendRequest(request); err != nil {
 		return nil, nil, err
 	}
 
@@ -44,9 +43,10 @@ func (h *saveRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type inMemoryListener struct {
-	s2c         net.Conn
-	c2s         net.Conn
+	s2c         io.Closer
+	c2s         io.ReadWriteCloser
 	connChannel chan net.Conn
+	closeOnce   sync.Once
 }
 
 func newInMemoryListener() inMemoryListener {
@@ -91,13 +91,25 @@ func (l *inMemoryListener) Accept() (net.Conn, error) {
 // Close closes the listener.
 // Any blocked Accept operations will be unblocked and return errors.
 func (l *inMemoryListener) Close() error {
-	l.s2c.Close()
-	l.c2s.Close()
-	close(l.connChannel)
+	l.closeOnce.Do(func() {
+		l.s2c.Close()
+		l.c2s.Close()
+		close(l.connChannel)
+	})
 	return nil
 }
 
 // Addr returns the listener's network address.
-func (l *inMemoryListener) Addr() net.Addr {
-	return l.c2s.LocalAddr()
+func (inMemoryListener) Addr() net.Addr {
+	return dummyAddr{}
+}
+
+type dummyAddr struct{}
+
+func (dummyAddr) Network() string {
+	return "inmemory"
+}
+
+func (dummyAddr) String() string {
+	return "localhost"
 }
