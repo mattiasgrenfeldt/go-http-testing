@@ -20,7 +20,10 @@ func PerformRequest(ctx context.Context, request []byte) (parsedRequest *http.Re
 	}()
 	listener.SendRequest(request)
 	response, err = listener.ReadResponse()
-	srv.Shutdown(ctx)
+	err2 := srv.Shutdown(ctx)
+	if err == nil {
+		err = err2
+	}
 
 	parsedRequest = handler.LastRequest
 	return
