@@ -8,8 +8,8 @@ import (
 	"net/http"
 )
 
-// PerformRequest performs the HTTP request in 'request' against a http.Server and returns the http.Request that is seen by a http.Handler and the response that the server generates.
-func PerformRequest(ctx context.Context, request []byte) (parsedRequest *http.Request, response []byte, err error) {
+// PerformRequest performs the HTTP request in 'request' against a http.Server and returns the http.Request that is seen by a http.Handler and the response that the server generates as a []byte.
+func PerformRequest(ctx context.Context, request []byte) (*http.Request, []byte, error) {
 	handler := &saveRequestHandler{LastRequest: nil}
 
 	srv := http.Server{Handler: handler}
@@ -19,14 +19,13 @@ func PerformRequest(ctx context.Context, request []byte) (parsedRequest *http.Re
 		srv.Serve(&listener)
 	}()
 	listener.SendRequest(request)
-	response, err = listener.ReadResponse()
+	response, err := listener.ReadResponse()
 	err2 := srv.Shutdown(ctx)
 	if err == nil {
 		err = err2
 	}
 
-	parsedRequest = handler.LastRequest
-	return
+	return handler.LastRequest, response, err
 }
 
 // saveRequestHandler puts the most recent request it has received in LastRequest
