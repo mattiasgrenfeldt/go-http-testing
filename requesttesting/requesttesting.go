@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"sync"
 )
 
 // PerformRequest performs the HTTP request in 'request' against a http.Server and returns the http.Request that is seen by a http.Handler and the response that the server generates as a []byte.
-func PerformRequest(ctx context.Context, request []byte) (*http.Request, []byte, error) {
+func PerformRequest(ctx context.Context, request []byte) (parsedRequest *http.Request, requestBody []byte, response []byte, err error) {
 	handler := &saveRequestHandler{}
 
 	srv := http.Server{Handler: handler}
@@ -20,25 +21,31 @@ func PerformRequest(ctx context.Context, request []byte) (*http.Request, []byte,
 	go srv.Serve(&listener)
 	defer srv.Close()
 
-	if err := listener.SendRequest(request); err != nil {
-		return nil, nil, err
+	if err = listener.SendRequest(request); err != nil {
+		return
 	}
 
-	response, err := listener.ReadResponse()
+	response, err = listener.ReadResponse()
+	parsedRequest = handler.LastRequest
+	requestBody = handler.LastRequestBody
 	if err != nil {
-		return handler.LastRequest, nil, err
+		return
 	}
 
-	return handler.LastRequest, response, srv.Shutdown(ctx)
+	err = srv.Shutdown(ctx)
+	return
 }
 
-// saveRequestHandler puts the most recent request it has received in LastRequest
+// saveRequestHandler puts the most recent request it has received in LastRequest.
+// LastRequestBody needs to be saved separately since the Server closes LastRequest.Body after it has passed the handler.
 type saveRequestHandler struct {
-	LastRequest *http.Request
+	LastRequest     *http.Request
+	LastRequestBody []byte
 }
 
 func (h *saveRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.LastRequest = r
+	h.LastRequestBody, _ = ioutil.ReadAll(r.Body)
 	io.WriteString(w, "Hello World!")
 }
 
