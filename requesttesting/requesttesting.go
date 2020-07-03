@@ -10,8 +10,14 @@ import (
 	"sync"
 )
 
+type PerformRequestResult struct {
+	Req     *http.Request
+	ReqBody []byte
+	Resp    []byte
+}
+
 // PerformRequest performs the HTTP request in 'request' against a http.Server and returns the http.Request that is seen by a http.Handler and the response that the server generates as a []byte.
-func PerformRequest(ctx context.Context, request []byte) (parsedRequest *http.Request, requestBody []byte, response []byte, err error) {
+func PerformRequest(ctx context.Context, request []byte) (PerformRequestResult, error) {
 	handler := &saveRequestHandler{}
 
 	srv := http.Server{Handler: handler}
@@ -21,19 +27,20 @@ func PerformRequest(ctx context.Context, request []byte) (parsedRequest *http.Re
 	go srv.Serve(&listener)
 	defer srv.Close()
 
-	if err = listener.SendRequest(request); err != nil {
-		return
+	result := PerformRequestResult{}
+	if err := listener.SendRequest(request); err != nil {
+		return result, err
 	}
 
-	response, err = listener.ReadResponse()
-	parsedRequest = handler.LastRequest
-	requestBody = handler.LastRequestBody
+	var err error
+	result.Resp, err = listener.ReadResponse()
+	result.Req = handler.LastRequest
+	result.ReqBody = handler.LastRequestBody
 	if err != nil {
-		return
+		return result, err
 	}
 
-	err = srv.Shutdown(ctx)
-	return
+	return result, srv.Shutdown(ctx)
 }
 
 // saveRequestHandler puts the most recent request it has received in LastRequest.
