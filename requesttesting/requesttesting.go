@@ -34,11 +34,11 @@ func PerformRequest(ctx context.Context, request []byte) (PerformRequestResult, 
 
 	var err error
 	result.Resp, err = listener.ReadResponse()
-	result.Req = handler.LastRequest
-	result.ReqBody = handler.LastRequestBody
 	if err != nil {
 		return result, err
 	}
+	result.Req = handler.LastRequest
+	result.ReqBody = handler.LastRequestBody
 
 	return result, srv.Shutdown(ctx)
 }
